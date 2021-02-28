@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <time.h>
+
+/* necessary to use getch(), don't need to press enter */
+/* #include <ncurses.h> */
 
 #define HELP "USAGE: cpmdrtimer \
 -t <int> \
@@ -17,6 +21,8 @@ void rest();
 
 int main(int argc, char **argv) {
    int opt;
+
+   /* initscr(); */
 
    while ((opt = getopt(argc, argv, "t:r:h")) != -1 ) {
       switch (opt) {
@@ -45,13 +51,18 @@ void help() {
 
 void timer(int time) {
    char key;
+   unsigned int cur = 0, end = time * 1000 * 60 * 60;
+   clock_t start = clock();
 
-   while (time * 60 * 60 > 0) {
-      time--;
+   while(cur < end) {
+      clock_t diff = clock() - start;
+      cur = (diff * 1000 * 60) / CLOCKS_PER_SEC; 
 
-      scanf("%s", key);
-      if (key == 't') printf("%d", time);
-   }
+      scanf("%c", &key);
+      if (key == 's') printf("%d\n", ((time * cur) / end));
+   };
+
+   printf("END");
 }
 
 void rest(int rest) {
