@@ -45,9 +45,10 @@ typedef struct {
 
 deftimer_t deftimer;
 timerctl_t timerctl;
+static bool flag = false;
 
 static void help(void);
-static void timer(int timer_val, bool rest);
+static void timer(int timer_val);
 static void error(int line, char *msg);
 static void notify(char *msg);
 static void shandler(int signo);
@@ -61,7 +62,7 @@ main(int argc, char **argv) {
       error(80, "cannot associate SIGUSR1 to handler");
    }
 
-   if (argc == 1) timer(DEFAULT_WORK_VAL, true);
+   if (argc == 1) timer(DEFAULT_WORK_VAL);
 
    while ((opt = getopt(argc, argv, "w:r:h")) != -1) {
       switch (opt) {
@@ -81,7 +82,7 @@ main(int argc, char **argv) {
       }
    }
 
-   timer(deftimer.work, true);
+   timer(deftimer.work);
 
    return EXIT_SUCCESS;
 }
@@ -92,27 +93,20 @@ help(void) {
 }
 
 static void 
-timer(int period, bool rest) {
+timer(int period) {
    if ((timerctl.start = time(NULL)) < 0) error(68, "error to start timer");
 
    timerctl.cur = timerctl.start;
    timerctl.end = timerctl.start + 60 * period;
 
-   rest ? notify("work time") : notify("rest time");
+   (flag ^= 1) ? notify("work time") : notify("rest time");
 
    while(difftime(timerctl.end, timerctl.cur) > 0) {
       if ((timerctl.cur = time(NULL)) < 0) error(73, "error to start timer");
    };
 
-   if (rest) {
-      deftimer.rest ? 
-      timer(deftimer.rest, false) : 
-      timer(DEFAULT_REST_VAL, false);
-   } else {
-      deftimer.work ? 
-      timer(deftimer.work, true) :
-      timer(DEFAULT_WORK_VAL, true);
-   }
+   if (flag) deftimer.rest ? timer(deftimer.rest) : timer(DEFAULT_REST_VAL);
+   else deftimer.work ? timer(deftimer.work) : timer(DEFAULT_WORK_VAL);
 }
 
 static void
@@ -120,9 +114,7 @@ error(int line, char *msg) {
    fprintf(
          stderr, 
          "cpmrtimer:%d: error: %s [%s]\n", 
-         line, 
-         msg, 
-         strerror(errno)
+         line, msg, strerror(errno)
          );
 
    exit(EXIT_FAILURE);
