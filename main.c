@@ -1,10 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <time.h>
 #include <errno.h>
 /* #include <getopt.h> */
+
+#ifndef NOTIFY
+#include <libnotify/notify.h>
+#endif
+
+#define DEFAULT_WORK_VAL 25
+#define DEFAULT_REST_VAL 5
 
 #define HELP "USAGE: cpmdrtimer \
 -w <int> \
@@ -23,24 +31,26 @@ OPTIONS: \n \
    /* {0, 0, 0, 0} */
 /* }; */
 
-void help();
-void timer(int work_val);
-void rest(int rest_val);
-void fail(int line, char *msg);
+void help(void);
+void timer(int timer_val, bool rest);
+void error(int line, char *msg);
+void notify(char *msg);
+
+int work_timer, rest_timer;
 
 int
 main(int argc, char **argv) {
    int opt;
 
-   if (argc == 1) printf(HELP);
+   if (argc == 1) timer(DEFAULT_WORK_VAL, true);
 
-   while ((opt = getopt(argc, argv, "w:r:h")) != -1 ) {
+   while ((opt = getopt(argc, argv, "w:r:h")) != -1) {
       switch (opt) {
          case 'w': 
-            timer(atoi(optarg));
+            work_timer = atoi(optarg);
             break;
          case 'r':
-            rest(atoi(optarg));
+            rest_timer = atoi(optarg);
             break;
          case 'h':
             help();
@@ -52,55 +62,63 @@ main(int argc, char **argv) {
       }
    }
 
+   timer(work_timer, true);
+
    return EXIT_SUCCESS;
 }
 
-void help() {
+void
+help(void) {
    printf(HELP);
 }
 
 void 
-timer(int work_val) {
+timer(int timer_val, bool rest) {
+   time_t start, cur, end;
    char key;
-   int end, out;
-   time_t start, tmp;
-   struct tm *start_localtime, *cur;
 
-   if ((start = time(NULL)) < 0) fail(60, "error to start timer");
+   if ((start = time(NULL)) < 0) error(68, "error to start timer");
 
-   if ((start_localtime = localtime(&start)) == NULL) {
-         fail(62, "error to convert start of type time_t to localtime value");
-   }
+   end = start + 60 * timer_val;
 
-   end = start_localtime->tm_min + work_val;
+   if (!rest) notify("\nREST TIME\n");
+   else notify("\nWORK TIME\n");
 
-   while(start_localtime->tm_min < end) {
-      if ((tmp = time(NULL)) < 0) fail(69, "error to start timer");
+   while(difftime(end, start) > 0) {
+      if ((cur = time(NULL)) < 0) error(73, "error to start timer");
 
-      if ((cur = localtime(&tmp)) == NULL) {
-         fail(71, "error to convert tmp of type time_t to localtime value");
-      }
-
-      out = end - (start_localtime->tm_min + (cur->tm_min - start_localtime->tm_min)); 
-
+      /* TODO: read a signal or a key without block the loop */
       scanf("%c", &key);
-      if (key == 's') printf("%d\n", (
-               out != 1 ?
-               out :
-               60 - localtime(&tmp)->tm_sec
-               ));
+      if (key == 's') printf(
+            "%02d:%02d\n", 
+            (int) difftime(end, cur) / 60,
+            (int) difftime(end, cur) % 60
+            );
    };
 
-   printf("END\n");
+   if (rest) {
+      rest_timer ? 
+      timer(rest_timer, false) : 
+      timer(DEFAULT_REST_VAL, false);
+   } else {
+      work_timer ? 
+      timer(work_timer, true) :
+      timer(DEFAULT_WORK_VAL, true);
+   }
 }
 
 void
-rest(int rest_val) {
-   printf("rest time: %d\n", rest_val);
-}
-
-void
-fail(int line, char *msg) {
+error(int line, char *msg) {
    fprintf(stderr, "cpmrtimer:%d: %s [%s]", line, msg, strerror(errno));
+
    exit(EXIT_FAILURE);
+}
+
+void
+notify(char *msg) {
+   NotifyNotification *ntf;
+   notify_init("cpmdrtimer");
+   ntf = notify_notification_new("cpmdrtimer", msg, NULL);
+
+   notify_notification_show(ntf, NULL);
 }
