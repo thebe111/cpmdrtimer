@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <errno.h>
-/* #include <getopt.h> */
+#include <getopt.h>
 
 #ifndef NOTIFY
 #include <libnotify/notify.h>
@@ -23,14 +23,6 @@ OPTIONS: \n \
 -w, --work   work time \n \
 -r, --rest   rest time \n \
 -h, --help   this help message \n"
-
-/* TODO: to implement long options */
-/* static struct option long_options[] = { */
-   /* {"work", no_argument, 0, "w"}, */
-   /* {"rest", no_argument, 0, "r"}, */
-   /* {"help", no_argument, 0, "h"}, */
-   /* {0, 0, 0, 0} */
-/* }; */
 
 typedef struct {
    time_t start;
@@ -56,7 +48,14 @@ static void cur_time(void);
 
 int
 main(int argc, char **argv) {
-   int opt;
+   int opt, index;
+
+   static struct option long_options[] = {
+      {"work", required_argument, 0, 'w'},
+      {"rest", required_argument, 0, 'r'},
+      {"help", no_argument, 0, 'h'},
+      {0, 0, 0, 0}
+   };
 
    if (signal(SIGUSR1, shandler) == SIG_ERR) {
       error(80, "cannot associate SIGUSR1 to handler");
@@ -64,7 +63,8 @@ main(int argc, char **argv) {
 
    if (argc == 1) timer(DEFAULT_WORK_VAL);
 
-   while ((opt = getopt(argc, argv, "w:r:h")) != -1) {
+   while ((opt = getopt_long(argc, argv, "w:r:h", long_options, &index)
+          ) != -1) {
       switch (opt) {
          case 'w': 
             deftimer.work = atoi(optarg);
@@ -74,6 +74,7 @@ main(int argc, char **argv) {
             break;
          case 'h':
             help();
+            exit(EXIT_SUCCESS);
             break;
          default:
             help();
