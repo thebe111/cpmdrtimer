@@ -1,0 +1,15 @@
+CPMDRTIMER
+==========
+
+how to use
+----------
+
+1. make
+2. cp cpmdrtimer /usr/local/bin
+
+useful
+----------
+
+alias cpt="cpmdrtimer"
+alias cptd="kill -USR1 $(pidof cpmdrtimer)"
+
