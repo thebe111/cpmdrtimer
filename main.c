@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <signal.h>
 #include <unistd.h>
 #include <time.h>
 #include <errno.h>
@@ -31,26 +32,44 @@ OPTIONS: \n \
    /* {0, 0, 0, 0} */
 /* }; */
 
-void help(void);
-void timer(int timer_val, bool rest);
-void error(int line, char *msg);
-void notify(char *msg);
+typedef struct {
+   time_t start;
+   time_t cur;
+   time_t end;
+} timerctl_t;
 
-int work_timer, rest_timer;
+typedef struct {
+   int work;
+   int rest;
+} deftimer_t;
+
+deftimer_t deftimer;
+timerctl_t timerctl;
+
+static void help(void);
+static void timer(int timer_val, bool rest);
+static void error(int line, char *msg);
+static void notify(char *msg);
+static void shandler(int signo);
+static void cur_time(void);
 
 int
 main(int argc, char **argv) {
    int opt;
+
+   if (signal(SIGUSR1, shandler) == SIG_ERR) {
+      error(80, "cannot associate SIGUSR1 to handler");
+   }
 
    if (argc == 1) timer(DEFAULT_WORK_VAL, true);
 
    while ((opt = getopt(argc, argv, "w:r:h")) != -1) {
       switch (opt) {
          case 'w': 
-            work_timer = atoi(optarg);
+            deftimer.work = atoi(optarg);
             break;
          case 'r':
-            rest_timer = atoi(optarg);
+            deftimer.rest = atoi(optarg);
             break;
          case 'h':
             help();
@@ -62,63 +81,76 @@ main(int argc, char **argv) {
       }
    }
 
-   timer(work_timer, true);
+   timer(deftimer.work, true);
 
    return EXIT_SUCCESS;
 }
 
-void
+static void
 help(void) {
    printf(HELP);
 }
 
-void 
-timer(int timer_val, bool rest) {
-   time_t start, cur, end;
-   char key;
+static void 
+timer(int period, bool rest) {
+   if ((timerctl.start = time(NULL)) < 0) error(68, "error to start timer");
 
-   if ((start = time(NULL)) < 0) error(68, "error to start timer");
+   timerctl.cur = timerctl.start;
+   timerctl.end = timerctl.start + 60 * period;
 
-   end = start + 60 * timer_val;
+   rest ? notify("work time") : notify("rest time");
 
-   if (!rest) notify("\nREST TIME\n");
-   else notify("\nWORK TIME\n");
-
-   while(difftime(end, start) > 0) {
-      if ((cur = time(NULL)) < 0) error(73, "error to start timer");
-
-      /* TODO: read a signal or a key without block the loop */
-      scanf("%c", &key);
-      if (key == 's') printf(
-            "%02d:%02d\n", 
-            (int) difftime(end, cur) / 60,
-            (int) difftime(end, cur) % 60
-            );
+   while(difftime(timerctl.end, timerctl.cur) > 0) {
+      if ((timerctl.cur = time(NULL)) < 0) error(73, "error to start timer");
    };
 
    if (rest) {
-      rest_timer ? 
-      timer(rest_timer, false) : 
+      deftimer.rest ? 
+      timer(deftimer.rest, false) : 
       timer(DEFAULT_REST_VAL, false);
    } else {
-      work_timer ? 
-      timer(work_timer, true) :
+      deftimer.work ? 
+      timer(deftimer.work, true) :
       timer(DEFAULT_WORK_VAL, true);
    }
 }
 
-void
+static void
 error(int line, char *msg) {
-   fprintf(stderr, "cpmrtimer:%d: %s [%s]", line, msg, strerror(errno));
+   fprintf(
+         stderr, 
+         "cpmrtimer:%d: error: %s [%s]\n", 
+         line, 
+         msg, 
+         strerror(errno)
+         );
 
    exit(EXIT_FAILURE);
 }
 
-void
+static void
 notify(char *msg) {
    NotifyNotification *ntf;
    notify_init("cpmdrtimer");
    ntf = notify_notification_new("cpmdrtimer", msg, NULL);
-
    notify_notification_show(ntf, NULL);
+}
+
+static void
+shandler(int signo) {
+   if (signo == SIGUSR1) cur_time();
+}
+
+static void
+cur_time(void) {
+   char msg[17];
+
+   sprintf(
+         msg,
+         "%02d:%02d", 
+         (int) difftime(timerctl.end, timerctl.cur) / 60,
+         (int) difftime(timerctl.end, timerctl.cur) % 60
+         );
+
+   notify(msg);
 }
