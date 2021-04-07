@@ -83,7 +83,7 @@ main(int argc, char **argv) {
       }
    }
 
-   timer(deftimer.work);
+   timer(deftimer.work ? deftimer.work : DEFAULT_WORK_VAL);
 
    return EXIT_SUCCESS;
 }
@@ -100,14 +100,15 @@ timer(int period) {
    timerctl.cur = timerctl.start;
    timerctl.end = timerctl.start + 60 * period;
 
-   (flag ^= 1) ? notify("work time") : notify("rest time");
+   flag ? notify("rest time") : notify("work time");
 
    while(difftime(timerctl.end, timerctl.cur) > 0) {
       if ((timerctl.cur = time(NULL)) < 0) error(73, "error to start timer");
    };
 
-   if (flag) deftimer.rest ? timer(deftimer.rest) : timer(DEFAULT_REST_VAL);
-   else deftimer.work ? timer(deftimer.work) : timer(DEFAULT_WORK_VAL);
+   (flag ^= 1) ?
+      timer(deftimer.rest ? deftimer.rest : DEFAULT_REST_VAL) :
+      timer(deftimer.work ? deftimer.work : DEFAULT_WORK_VAL);
 }
 
 static void
